@@ -1,0 +1,103 @@
+#! /usr/bin/env python
+
+import sys
+import copy
+from genpy import Duration
+import rospy
+import moveit_commander
+import moveit_msgs.msg
+import geometry_msgs.msg
+import trajectory_msgs.msg
+import numpy as np
+
+moveit_commander.roscpp_initialize(sys.argv)
+rospy.init_node("move_group", anonymous=True)
+
+robot = moveit_commander.RobotCommander()
+scene = moveit_commander.PlanningSceneInterface()
+group = moveit_commander.MoveGroupCommander("ur5_e_arm")
+display_trajectory_publisher = rospy.Publisher("/move_group/display_planned_path", moveit_msgs.msg.DisplayTrajectory, queue_size=1)
+
+group_variable_values = group.get_current_joint_values()
+
+group_variable_values[1] = -1.5
+group.set_joint_value_target(group_variable_values)
+
+plan1 = group.plan()  # type: moveit_msgs.msg.RobotTrajectory
+
+# Jerk profile types
+UDDU = lambda min, max: [max, 0, min, 0, min, 0, max]
+DUUD = lambda min, max: [min, 0, max, 0, max, 0, min]
+UDUD = lambda min, max: [max, 0, min, 0, max, 0, min]
+DUDU = lambda min, max: [min, 0, max, 0, min, 0, max]
+
+# TODO: Implement min/max velocity/acceleration
+def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, accel_min, accel_max, jerk_min=-1.0, jerk_max=None):
+	# type: (moveit_msgs.msg.RobotTrajectory, function, float, float, float, float, float, float) -> moveit_msgs.msg.RobotTrajectory
+	
+	# num_of_dofs = len(input_plan.joint_trajectory.joint_names)
+	# if num_of_dofs == 0:
+	# 	return  # TODO: Return empty trajectory, cannot be optimized because it was never created
+
+	# Problem Statement
+	if jerk_max is None:
+		jerk_max = -jerk_min
+
+	jerk_profile = jerk_profile_type(jerk_min, jerk_max)  # Initialize the jerk profile with the provided max/min jerk values
+
+	initial_state = input_plan.joint_trajectory.points[0]  # type: trajectory_msgs.msg.JointTrajectoryPoint
+	final_state = input_plan.joint_trajectory.points[-1]  # type: trajectory_msgs.msg.JointTrajectoryPoint
+	
+	t = np.linspace(initial_state.time_from_start.to_sec(), final_state.time_from_start.to_sec(), 8)  # Create an array of timestamps to create 7 time intervals
+
+	result = copy.deepcopy(input_plan)
+	result.joint_trajectory.points[:] = []  # Clears the trajectory points, leaving an identical trajectory with no points
+
+	for k, ts in enumerate(t):  # For each point ts (index k) in all times t
+		current_jerk = jerk_profile[k-1]
+		new_point = trajectory_msgs.msg.JointTrajectoryPoint()
+		new_point.time_from_start = Duration.from_sec(ts)
+		if k == 0:  # First timestamp, so use initial pos, vel, and accel to start deriving
+			new_point.accelerations = initial_state.accelerations
+			new_point.velocities = initial_state.velocities
+			new_point.positions = initial_state.positions
+		else:  # Generate new values based on previous ones
+			new_point.accelerations = [gen_next_a(x, current_jerk, result.joint_trajectory.points[-1].time_from_start) for x in result.joint_trajectory.points[-1].accelerations]
+			new_point.velocities = [gen_next_v(result.joint_trajectory.points[-1].accelerations[x], result.joint_trajectory.points[-1].velocities[x], current_jerk, result.joint_trajectory.points[-1].time_from_start) for x in range(len(result.joint_trajectory.joint_names))]
+			new_point.positions = [gen_next_p(result.joint_trajectory.points[-1].accelerations[x], result.joint_trajectory.points[-1].velocities[x], result.joint_trajectory.points[-1].positions[x], current_jerk, result.joint_trajectory.points[-1].time_from_start) for x in range(len(result.joint_trajectory.joint_names))]
+		result.joint_trajectory.points.append(new_point)
+	
+	return result
+
+	
+def gen_next_a(current_accel, jerk_with_sign, current_time):
+	# type: (float, float, rospy.Duration) -> float
+
+	# a_k+1 = a_k + s_k*j_k*t_k
+	return current_accel + (jerk_with_sign * current_time.to_sec())
+
+def gen_next_v(current_accel, current_vel, jerk_with_sign, current_time):
+	# type: (float, float, float, rospy.Duration) -> float
+
+	# v_k+1 = v_k + a_k*t_k + (s_k*j_k / 2)t^2_k
+	return current_vel + (current_accel*current_time.to_sec()) + ((jerk_with_sign / 2) * (current_time.to_sec() ** 2))
+
+def gen_next_p(current_accel, current_vel, current_pos, jerk_with_sign, current_time):
+	# type: (float, float, float, float, rospy.Duration) -> float
+
+	# p_k+1 = p_k + v_k*t_k + (a_k / 2)t^2_k + (s_k*j_k / 6)t^3_k
+	return current_pos + (current_vel * current_time.to_sec()) + ((current_accel / 2) * (current_time.to_sec() ** 2)) + ((jerk_with_sign / 6) * (current_time.to_sec() ** 3))
+	
+
+traj = generate_smooth_trajectory(plan1, DUDU, 0.0, 0.0, 0.0, 0.0, -1, 1)
+print(traj)
+
+# Send the new trajectory to the /move_group/display_planned_path topic to display in RViz/rqt
+display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+display_trajectory.trajectory_start = robot.get_current_state()
+display_trajectory.trajectory.append(traj)
+display_trajectory_publisher.publish(display_trajectory)
+
+rospy.sleep(1)
+
+moveit_commander.roscpp_shutdown()

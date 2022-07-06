@@ -1,0 +1,22 @@
+<launch>
+	<!-- loads the robot's description and other metadata -->
+	<include file="$(find ur5e_natural_motion)/launch/planning_context.launch" >
+		<arg name="load_robot_description" value="true" />
+	</include>
+
+	<!-- starts the joint state publisher to monitor the robot's joint states -->
+	<node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+		<param name="/use_gui" value="false"/>
+		<rosparam param="/source_list">[/joint_states]</rosparam>
+	</node>
+
+	<!-- starts the move_group node to publish the planning scene for RViz -->
+	<include file="$(find ur5e_natural_motion)/launch/move_group.launch">
+		<arg name="publish_monitored_planning_scene" value="true" />
+	</include>
+
+	<!-- starts RViz with the provided setup file -->
+	<include file="$(find ur5e_natural_motion)/launch/moveit_rviz.launch">
+		<arg name="rviz_config" value="$(find ur5e_natural_motion)/launch/moveit.rviz" />
+	</include>
+</launch>
