@@ -18,20 +18,13 @@ scene = moveit_commander.PlanningSceneInterface()
 group = moveit_commander.MoveGroupCommander("ur5_e_arm")
 display_trajectory_publisher = rospy.Publisher("/move_group/display_planned_path", moveit_msgs.msg.DisplayTrajectory, queue_size=1)
 
-group_variable_values = group.get_current_joint_values()
-
-# group_variable_values[1] = -1.5
-group_variable_values[4] = 1.7
-group.set_joint_value_target(group_variable_values)
-
-plan1 = group.plan()  # type: moveit_msgs.msg.RobotTrajectory
-
 # Jerk profile types
 UDDU = lambda min, max: [max, 0, min, 0, min, 0, max]
 DUUD = lambda min, max: [min, 0, max, 0, max, 0, min]
 UDUD = lambda min, max: [max, 0, min, 0, max, 0, min]
 DUDU = lambda min, max: [min, 0, max, 0, min, 0, max]
 
+# TODO: Implement min/max velocity/acceleration
 def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, accel_min, accel_max, jerk_min=-1.0, jerk_max=None):
 	# type: (moveit_msgs.msg.RobotTrajectory, function, float, float, float, float, float, float) -> moveit_msgs.msg.RobotTrajectory
 	
@@ -49,7 +42,7 @@ def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, 
 	final_state = input_plan.joint_trajectory.points[-1]  # type: trajectory_msgs.msg.JointTrajectoryPoint
 	
 	times = np.linspace(initial_state.time_from_start.to_sec(), final_state.time_from_start.to_sec(), 8, retstep=True)  # Create an array of timestamps to create 7 time intervals
-	print(times)
+	# print(times)
 	t = times[0]
 	t_step = float(times[1])
 
@@ -57,9 +50,9 @@ def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, 
 	result.joint_trajectory.points[:] = []  # Clears the trajectory points, leaving an identical trajectory with no points
 
 	for k, ts in enumerate(t):  # For each point ts (index k) in all times t
-		print("Current time: ts=" + str(ts) + "  k=" + str(k))
+		# print("Current time: ts=" + str(ts) + "  k=" + str(k))
 		current_jerk = jerk_profile[k-1]
-		print("    jerk=" + str(current_jerk))
+		# print("    jerk=" + str(current_jerk))
 		new_point = trajectory_msgs.msg.JointTrajectoryPoint()
 		new_point.time_from_start = Duration.from_sec(ts)
 		if k == 0:  # First timestamp, so use initial pos, vel, and accel to start deriving
@@ -93,31 +86,42 @@ def gen_next_p(current_accel, current_vel, current_pos, jerk_with_sign, time_ste
 	# p_k+1 = p_k + v_k*t_k + (a_k / 2)t^2_k + (s_k*j_k / 6)t^3_k
 	return current_pos + (current_vel * time_step) + ((current_accel / 2) * (time_step ** 2)) + ((jerk_with_sign / 6) * (time_step ** 3))
 
-def find_jerk_limit(final_position, total_duration):
-	# type: (float, float) -> float
-	jerk_slope = time_to_jerk_slope(total_duration)
-	magic_constant = -0.000028534392
-	return (final_position - magic_constant) / jerk_slope
 
-def time_to_jerk_slope(duration):
-	# type: (float) -> float
-	# UDDU profiles
-	return -0.00058 + (0.00138 * duration) - (0.000936 * (duration ** 2)) + (0.0235 * (duration ** 3))
+original_joint_positions = group.get_current_joint_values()
+profile_type = UDUD
+joint_index = 4
 
-	# UDUD profiles
-	# return -0.00328 + (0.00764 * duration) - (0.00522 * (duration ** 2)) + (0.0419 * (duration ** 3))
-	
-# print(str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
-traj = generate_smooth_trajectory(plan1, UDDU, 0.0, 0.0, 0.0, 0.0, -find_jerk_limit(plan1.joint_trajectory.points[-1].positions[4], plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
+for pos in [1.75, 2.0, 2.25]:
+	original_joint_positions[joint_index] = pos
+	group.set_joint_value_target(original_joint_positions)
+
+	plan1 = group.plan()  # type: moveit_msgs.msg.RobotTrajectory
+	print("Position: " + str(pos) + " Time: " + str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
+
+	prev_pos = 0.0
+	prev_jerk = 0.0
+
+	for i in np.arange(0.0, 50.0, 0.25):
+		# final_pos = generate_smooth_trajectory(plan1, profile_type, 0.0, 0.0, 0.0, 0.0, -i).joint_trajectory.points[-1].positions[joint_index]
+		# if final_pos < pos:
+		# 	prev_pos = final_pos
+		# 	prev_jerk = i
+		# else:
+		# 	print(str(prev_pos) + "->" + str(final_pos) + "===" + str(prev_jerk) + "->" + str(i))
+		# 	break
+		print(str(generate_smooth_trajectory(plan1, profile_type, 0.0, 0.0, 0.0, 0.0, -i).joint_trajectory.points[-1].positions[joint_index]))
+
+	# for max_jerk in [0.25, 0.5, 1, 2, 3, 4, 5, 10, 15, 20, 25, 30]:
+		# print("    Jerk: " + str(max_jerk) + " Final pos: " + str(generate_smooth_trajectory(plan1, profile_type, 0.0, 0.0, 0.0, 0.0, -max_jerk).joint_trajectory.points[-1].positions[joint_index]))
+		# print(str(generate_smooth_trajectory(plan1, profile_type, 0.0, 0.0, 0.0, 0.0, -max_jerk).joint_trajectory.points[-1].positions[joint_index]))
+
+
+# print(plan1)
+# traj = generate_smooth_trajectory(plan1, UDUD, 0.0, 0.0, 0.0, 0.0, -3.1)
 # Could the max/min jerk be directly related to the final position of the arm or the total duration of the trajectory?
 # UDUD: move to 0.5 -> -12.3 jerk, but with move to 1.0 final position jumps to 4.0+
-print(traj)
+# print(traj)
 
-# Send the new trajectory to the /move_group/display_planned_path topic to display in RViz/rqt
-display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-display_trajectory.trajectory_start = robot.get_current_state()
-display_trajectory.trajectory.append(traj)
-display_trajectory_publisher.publish(display_trajectory)
 
 rospy.sleep(1)
 
