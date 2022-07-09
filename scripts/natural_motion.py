@@ -9,6 +9,9 @@ import moveit_msgs.msg
 import geometry_msgs.msg
 import trajectory_msgs.msg
 import numpy as np
+import math
+
+# TODO: Finish documenting
 
 moveit_commander.roscpp_initialize(sys.argv)
 rospy.init_node("move_group", anonymous=True)
@@ -20,9 +23,17 @@ display_trajectory_publisher = rospy.Publisher("/move_group/display_planned_path
 
 group_variable_values = group.get_current_joint_values()
 
-# group_variable_values[1] = -1.5
-group_variable_values[4] = 1.7
-group.set_joint_value_target(group_variable_values)
+home_pose = [0, -1.5447, 1.5447, -1.5794, -1.5794, 0]
+default_pose = [0, 0, 0, 0, 0, 0]
+
+throw_back_pose = [0, math.radians(-32.0), math.radians(-150.0), math.radians(-16.0), math.radians(-90.0), 0]
+throw_forward_pose = [0, math.radians(-8.0), math.radians(-24.0), math.radians(-156.0), math.radians(-90.0), 0]
+
+group.set_joint_value_target(throw_forward_pose)
+
+# group_variable_values[1] = -1.5447
+# group_variable_values[4] = 3.0
+# group.set_joint_value_target(group_variable_values)
 
 plan1 = group.plan()  # type: moveit_msgs.msg.RobotTrajectory
 
@@ -32,45 +43,49 @@ DUUD = lambda min, max: [min, 0, max, 0, max, 0, min]
 UDUD = lambda min, max: [max, 0, min, 0, max, 0, min]
 DUDU = lambda min, max: [min, 0, max, 0, min, 0, max]
 
-def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, accel_min, accel_max, jerk_min=-1.0, jerk_max=None):
-	# type: (moveit_msgs.msg.RobotTrajectory, function, float, float, float, float, float, float) -> moveit_msgs.msg.RobotTrajectory
+def generate_smooth_trajectory(input_plan, jerk_profile_type):
+	# type: (moveit_msgs.msg.RobotTrajectory, function) -> moveit_msgs.msg.RobotTrajectory
 	
-	# num_of_dofs = len(input_plan.joint_trajectory.joint_names)
-	# if num_of_dofs == 0:
-	# 	return  # TODO: Return empty trajectory, cannot be optimized because it was never created
-
-	# Problem Statement
-	if jerk_max is None:
-		jerk_max = -jerk_min
-
-	jerk_profile = jerk_profile_type(jerk_min, jerk_max)  # Initialize the jerk profile with the provided max/min jerk values
+	# Return an empty trajectory if there is no data that can be used
+	if len(input_plan.joint_trajectory.joint_names) == 0:
+		return moveit_msgs.msg.RobotTrajectory()	
 
 	initial_state = input_plan.joint_trajectory.points[0]  # type: trajectory_msgs.msg.JointTrajectoryPoint
 	final_state = input_plan.joint_trajectory.points[-1]  # type: trajectory_msgs.msg.JointTrajectoryPoint
 	
-	times = np.linspace(initial_state.time_from_start.to_sec(), final_state.time_from_start.to_sec(), 8, retstep=True)  # Create an array of timestamps to create 7 time intervals
-	print(times)
+	# Create an array of timestamps to create 7 time intervals
+	# t holds the 8 timestamps, while t_step is the step between each interval
+	times = np.linspace(initial_state.time_from_start.to_sec(), final_state.time_from_start.to_sec(), 8, retstep=True)
 	t = times[0]
 	t_step = float(times[1])
 
 	result = copy.deepcopy(input_plan)
 	result.joint_trajectory.points[:] = []  # Clears the trajectory points, leaving an identical trajectory with no points
 
-	for k, ts in enumerate(t):  # For each point ts (index k) in all times t
-		print("Current time: ts=" + str(ts) + "  k=" + str(k))
-		current_jerk = jerk_profile[k-1]
-		print("    jerk=" + str(current_jerk))
-		new_point = trajectory_msgs.msg.JointTrajectoryPoint()
-		new_point.time_from_start = Duration.from_sec(ts)
-		if k == 0:  # First timestamp, so use initial pos, vel, and accel to start deriving
-			new_point.accelerations = initial_state.accelerations
-			new_point.velocities = initial_state.velocities
-			new_point.positions = initial_state.positions
-		else:  # Generate new values based on previous ones
-			new_point.accelerations = [gen_next_a(x, current_jerk, t_step) for x in result.joint_trajectory.points[-1].accelerations]
-			new_point.velocities = [gen_next_v(result.joint_trajectory.points[-1].accelerations[x], result.joint_trajectory.points[-1].velocities[x], current_jerk, t_step) for x in range(len(result.joint_trajectory.joint_names))]
-			new_point.positions = [gen_next_p(result.joint_trajectory.points[-1].accelerations[x], result.joint_trajectory.points[-1].velocities[x], result.joint_trajectory.points[-1].positions[x], current_jerk, t_step) for x in range(len(result.joint_trajectory.joint_names))]
-		result.joint_trajectory.points.append(new_point)
+	for i in range(len(t)):
+		result.joint_trajectory.points.append(trajectory_msgs.msg.JointTrajectoryPoint(time_from_start=Duration.from_sec(t[i])))
+
+	for joint_index in range(len(input_plan.joint_trajectory.joint_names)):
+		# Generate the jerk limits based on the DoF's final position and the trajectory's total time
+		max_jerk = find_jerk_limit(final_state.positions[joint_index] - initial_state.positions[joint_index], final_state.time_from_start.to_sec(), jerk_profile_type)
+		min_jerk = -max_jerk
+		# print("Joint " + str(joint_index) + ": jerk=" + str(max_jerk))
+
+		# Initialize the jerk profile with the generated max/min jerk values
+		jerk_profile = jerk_profile_type(min_jerk, max_jerk)  # type: list
+
+		for k, ts in enumerate(t):
+			current_jerk = jerk_profile[k-1]
+			if k == 0:
+				# print(accelerations)
+				# print("joint_index: " + str(joint_index) + "  accel: (" + str(type(initial_state.accelerations)) + ") " + str(initial_state.accelerations))
+				result.joint_trajectory.points[k].accelerations.append(initial_state.accelerations[joint_index])
+				result.joint_trajectory.points[k].velocities.append(initial_state.velocities[joint_index])
+				result.joint_trajectory.points[k].positions.append(initial_state.positions[joint_index])
+			else:
+				result.joint_trajectory.points[k].accelerations.append(gen_next_a(result.joint_trajectory.points[k-1].accelerations[joint_index], current_jerk, t_step))
+				result.joint_trajectory.points[k].velocities.append(gen_next_v(result.joint_trajectory.points[k-1].accelerations[joint_index], result.joint_trajectory.points[k-1].velocities[joint_index], current_jerk, t_step))
+				result.joint_trajectory.points[k].positions.append(gen_next_p(result.joint_trajectory.points[k-1].accelerations[joint_index], result.joint_trajectory.points[k-1].velocities[joint_index], result.joint_trajectory.points[k-1].positions[joint_index], current_jerk, t_step))
 	
 	return result
 
@@ -93,31 +108,44 @@ def gen_next_p(current_accel, current_vel, current_pos, jerk_with_sign, time_ste
 	# p_k+1 = p_k + v_k*t_k + (a_k / 2)t^2_k + (s_k*j_k / 6)t^3_k
 	return current_pos + (current_vel * time_step) + ((current_accel / 2) * (time_step ** 2)) + ((jerk_with_sign / 6) * (time_step ** 3))
 
-def find_jerk_limit(final_position, total_duration):
-	# type: (float, float) -> float
-	jerk_slope = time_to_jerk_slope(total_duration)
-	magic_constant = -0.000028534392
-	return (final_position - magic_constant) / jerk_slope
+def find_jerk_limit(position_delta, total_duration, jerk_profile_type):
+	# type: (float, float, function) -> float
+	jerk_slope = time_to_jerk_slope(total_duration, jerk_profile_type)
+	if jerk_profile_type in (DUUD, DUDU):  # TODO: Verify this works
+		coeff = -1
+	else:
+		coeff = 1
+	return coeff * (position_delta / jerk_slope)
 
-def time_to_jerk_slope(duration):
-	# type: (float) -> float
-	# UDDU profiles
-	return -0.00058 + (0.00138 * duration) - (0.000936 * (duration ** 2)) + (0.0235 * (duration ** 3))
+def time_to_jerk_slope(duration, jerk_profile_type):
+	# type: (float, function) -> float
+	if jerk_profile_type in (UDDU, DUUD):
+		# UDDU profiles
+		return -0.00058 + (0.00138 * duration) - (0.000936 * (duration ** 2)) + (0.0235 * (duration ** 3))
+	elif jerk_profile_type in (UDUD, DUDU):
+		# UDUD profiles
+		return -0.00328 + (0.00764 * duration) - (0.00522 * (duration ** 2)) + (0.0419 * (duration ** 3))
 
-	# UDUD profiles
-	# return -0.00328 + (0.00764 * duration) - (0.00522 * (duration ** 2)) + (0.0419 * (duration ** 3))
-	
-# print(str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
-traj = generate_smooth_trajectory(plan1, UDDU, 0.0, 0.0, 0.0, 0.0, -find_jerk_limit(plan1.joint_trajectory.points[-1].positions[4], plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
-# Could the max/min jerk be directly related to the final position of the arm or the total duration of the trajectory?
-# UDUD: move to 0.5 -> -12.3 jerk, but with move to 1.0 final position jumps to 4.0+
-print(traj)
+def publish_trajectory(publisher, trajectory, robot):
+	display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+	display_trajectory.trajectory_start = robot.get_current_state()
+	display_trajectory.trajectory.append(trajectory)
+	publisher.publish(display_trajectory)
+
+
+traj = generate_smooth_trajectory(plan1, UDDU)
+# print(traj)
+print("Total time: " + str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
+print("MoveIt Final Position:")
+print(plan1.joint_trajectory.points[-1].positions)
+print("Smoothed Final Position:")
+print(traj.joint_trajectory.points[-1].positions)
 
 # Send the new trajectory to the /move_group/display_planned_path topic to display in RViz/rqt
-display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-display_trajectory.trajectory_start = robot.get_current_state()
-display_trajectory.trajectory.append(traj)
-display_trajectory_publisher.publish(display_trajectory)
+# publish_trajectory(display_trajectory_publisher, traj, robot)
+group.execute(traj, wait=True)
+# publish_trajectory(display_trajectory_publisher, plan1, robot)
+# group.execute(plan1, wait=True)
 
 rospy.sleep(1)
 

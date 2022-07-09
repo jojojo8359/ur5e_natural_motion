@@ -88,15 +88,15 @@ def gen_next_p(current_accel, current_vel, current_pos, jerk_with_sign, time_ste
 
 
 original_joint_positions = group.get_current_joint_values()
-profile_type = UDUD
+profile_type = UDDU
 joint_index = 4
 
-for pos in [1.75, 2.0, 2.25]:
+for pos in [1.0, 1.25, 1.5]:
 	original_joint_positions[joint_index] = pos
 	group.set_joint_value_target(original_joint_positions)
 
 	plan1 = group.plan()  # type: moveit_msgs.msg.RobotTrajectory
-	print("Position: " + str(pos) + " Time: " + str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()))
+	print("Position: " + str(pos) + " Time: " + str(plan1.joint_trajectory.points[-1].time_from_start.to_sec()) + " Start Position: " + str(plan1.joint_trajectory.points[0].positions[joint_index]))
 
 	prev_pos = 0.0
 	prev_jerk = 0.0
