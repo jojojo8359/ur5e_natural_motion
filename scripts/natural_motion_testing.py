@@ -25,8 +25,8 @@ UDUD = lambda min, max: [max, 0, min, 0, max, 0, min]
 DUDU = lambda min, max: [min, 0, max, 0, min, 0, max]
 
 # TODO: Implement min/max velocity/acceleration
-def generate_smooth_trajectory(input_plan, jerk_profile_type, vel_min, vel_max, accel_min, accel_max, jerk_min=-1.0, jerk_max=None):
-	# type: (moveit_msgs.msg.RobotTrajectory, function, float, float, float, float, float, float) -> moveit_msgs.msg.RobotTrajectory
+def generate_smooth_trajectory(input_plan, jerk_profile_type, jerk_min=-1.0, jerk_max=None):
+	# type: (moveit_msgs.msg.RobotTrajectory, function, float, float) -> moveit_msgs.msg.RobotTrajectory
 	
 	# num_of_dofs = len(input_plan.joint_trajectory.joint_names)
 	# if num_of_dofs == 0:
