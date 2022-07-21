@@ -56,7 +56,9 @@ print(traj.joint_trajectory.points[-1].positions)
 
 # Send the new trajectory to the /move_group/display_planned_path topic to display in RViz/rqt
 publish_trajectory(display_trajectory_publisher, traj, robot)
-group.execute(traj, wait=True)
+print(str(type(group.get_current_pose().pose)))
+print(group.get_current_pose().pose)
+# group.execute(traj, wait=True)
 # publish_trajectory(display_trajectory_publisher, plan1, robot)
 # group.execute(plan1, wait=True)
 
