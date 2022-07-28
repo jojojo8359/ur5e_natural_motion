@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+	<include file="$(find ur_gazebo)/launch/ur5e_bringup.launch">
+		<arg name="robot_description_file" value="$(find natural_motion)/launch/load_ur5e.launch"/>
+	</include>
+</launch>

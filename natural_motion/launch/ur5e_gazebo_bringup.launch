@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<launch>
+	
+	<!--Robot description and related parameter files -->
+	<!-- <arg name="robot_description_file" default="$(find ur_gazebo)/launch/inc/load_ur5e.launch.xml" doc="Launch file which populates the 'robot_description' parameter."/> -->
+	<arg name="joint_limit_params" default="$(find ur_description)/config/ur5e/joint_limits.yaml"/>
+	<arg name="kinematics_params" default="$(find ur_description)/config/ur5e/default_kinematics.yaml"/>
+	<arg name="physical_params" default="$(find ur_description)/config/ur5e/physical_parameters.yaml"/>
+	<arg name="visual_params" default="$(find ur_description)/config/ur5e/visual_parameters.yaml"/>
+
+	<!--Common parameters  -->
+	<arg name="transmission_hw_interface" default="hardware_interface/PositionJointInterface" doc="The hardware_interface to expose for each joint in the simulated robot (one of: [PositionJointInterface, VelocityJointInterface, EffortJointInterface])"/>
+	<arg name="safety_limits" default="false" doc="If True, enable the safety limits controller"/>
+	<arg name="safety_pos_margin" default="0.15" doc="The lower/upper limits in the safety controller" />
+	<arg name="safety_k_position" default="20" doc="Used to set k position in the safety controller" />
+
+	<!-- Controller configuration -->
+	<arg name="controller_config_file" default="$(find ur_gazebo)/config/ur5e_controllers.yaml" doc="Config file used for defining the ROS-Control controllers."/>
+	<arg name="controllers" default="joint_state_controller pos_joint_traj_controller" doc="Controllers that are activated by default."/>
+	<arg name="stopped_controllers" default="joint_group_pos_controller" doc="Controllers that are initally loaded, but not started."/>
+
+	<!-- robot_state_publisher configuration -->
+	<arg name="tf_prefix" default="" doc="tf_prefix used for the robot."/>
+	<arg name="tf_pub_rate" default="500" doc="Rate at which robot_state_publisher should publish transforms."/>
+
+	<!-- Gazebo parameters -->
+	<arg name="paused" default="false" doc="Starts Gazebo in paused mode" />
+	<arg name="gui" default="true" doc="Starts Gazebo gui" />
+
+	<!-- Load urdf on the parameter server -->
+	<!-- <param name="robot_description" command="$(find xacro)/xacro '$(find ur_gazebo)/urdf/ur.xacro'
+		joint_limit_params:=$(arg joint_limit_params)
+		kinematics_params:=$(arg kinematics_params)
+		physical_params:=$(arg physical_params)
+		visual_params:=$(arg visual_params)
+		transmission_hw_interface:=$(arg transmission_hw_interface)
+		safety_limits:=$(arg safety_limits)
+		safety_pos_margin:=$(arg safety_pos_margin)
+		safety_k_position:=$(arg safety_k_position)"
+	/> -->
+	<param name="robot_description" command="$(find xacro)/xacro '$(find natural_motion)/urdf/ur5e_robotiq85_gripper.xacro'
+		joint_limit_params:=$(arg joint_limit_params)
+		kinematics_params:=$(arg kinematics_params)
+		physical_params:=$(arg physical_params)
+		visual_params:=$(arg visual_params)
+		transmission_hw_interface:=$(arg transmission_hw_interface)
+		safety_limits:=$(arg safety_limits)
+		safety_pos_margin:=$(arg safety_pos_margin)
+		safety_k_position:=$(arg safety_k_position)"
+	/>
+
+	<!-- Robot state publisher -->
+	<node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+		<param name="publish_frequency" type="double" value="$(arg tf_pub_rate)" />
+		<param name="tf_prefix" value="$(arg tf_prefix)" />
+	</node>
+
+	<!-- Start the 'driver' (ie: Gazebo in this case) -->
+	<include file="$(find ur_gazebo)/launch/inc/ur_control.launch.xml">
+		<arg name="controller_config_file" value="$(arg controller_config_file)"/>
+		<arg name="controllers" value="$(arg controllers)"/>
+		<arg name="gui" value="$(arg gui)"/>
+		<arg name="paused" value="$(arg paused)"/>
+		<arg name="stopped_controllers" value="$(arg stopped_controllers)"/>
+	</include>
+
+
+
+</launch>

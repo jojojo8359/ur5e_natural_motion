@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+	<!-- Load universal robot description format (URDF) -->
+	<param name="robot_description" command="xacro  '$(find ur_description)/urdf/ur5e.xacro'"/>
+
+</launch>
