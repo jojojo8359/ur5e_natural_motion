@@ -313,3 +313,61 @@ def add_wall(robot, scene, timeout=4):
 	wall_name = "wall"
 	scene.add_box(wall_name, box_pose, size=(10, 0.02, 10))
 	return wait_for_state_update(wall_name, scene, box_is_known=True, timeout=timeout)
+
+
+def shift_times(times, iterations=1):
+	# type: (np.ndarray, int) -> np.ndarray
+	"""Shifts an array of times so that they can be used in a plot to accurately display derivative graphs
+
+	:param times: the array of times to shift, with length n
+	:param iterations: the number of iterations to perform (useful for multiple derivatives)
+	:type times: np.ndarray
+	:type iterations: int
+	:returns: the shifted array of times, with length n-1
+	:rtype: np.ndarray
+	"""
+	t = times.copy()
+	for i in range(iterations):
+		shifted = np.array([])
+		d1 = np.diff(t)
+		for index, time in enumerate(d1):
+			# Use midpoints between each point
+			shifted = np.append(shifted, t[index] + (time / 2))
+		t = shifted
+	return t
+
+
+def integrate_time(data, times, initial_value):
+	# type: (np.ndarray, np.ndarray, float) -> np.ndarray
+	"""Performs numerical integration on a dataset with relation to time and an initial value
+
+	:param data: the data to numerically integrate
+	:param times: the time data to integrate with respect to
+	:param initial_value: the first value the integral should have
+	:type data: np.ndarray
+	:type times: np.ndarray
+	:type initial_value: float
+	:returns: the numeric integral of the dataset
+	:rtype: np.ndarray
+	"""
+	result = np.array([initial_value])
+	for index, point in enumerate(data):
+		result = np.append(result, result[-1] + (point * times[index]))
+	return result
+
+
+def integrate(data, initial_value):
+	# type: (np.ndarray, float) -> np.ndarray
+	"""Performs numerical integration on a dataset with an initial value
+	
+	:param data: the data to numerically integrate
+	:param initial_value: the first value the integral should have
+	:type data: np.ndarray
+	:type initial_value: float
+	:returns: the numeric integral of the dataset
+	:rtype: np.ndarray
+	"""
+	result = np.array([initial_value])
+	for point in data:
+		result = np.append(result, result[-1] + point)
+	return result
