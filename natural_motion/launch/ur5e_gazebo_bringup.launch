@@ -38,7 +38,17 @@
 		safety_pos_margin:=$(arg safety_pos_margin)
 		safety_k_position:=$(arg safety_k_position)"
 	/> -->
-	<param name="robot_description" command="$(find xacro)/xacro '$(find natural_motion)/urdf/ur5e_robotiq85_gripper.xacro'
+	<!-- <param name="robot_description" command="$(find xacro)/xacro '$(find natural_motion)/urdf/ur5e_robotiq85_gripper.xacro'
+		joint_limit_params:=$(arg joint_limit_params)
+		kinematics_params:=$(arg kinematics_params)
+		physical_params:=$(arg physical_params)
+		visual_params:=$(arg visual_params)
+		transmission_hw_interface:=$(arg transmission_hw_interface)
+		safety_limits:=$(arg safety_limits)
+		safety_pos_margin:=$(arg safety_pos_margin)
+		safety_k_position:=$(arg safety_k_position)"
+	/> -->
+	<param name="robot_description" command="$(find xacro)/xacro '$(find natural_motion)/urdf/ur5e.xacro'
 		joint_limit_params:=$(arg joint_limit_params)
 		kinematics_params:=$(arg kinematics_params)
 		physical_params:=$(arg physical_params)
@@ -64,6 +74,12 @@
 		<arg name="stopped_controllers" value="$(arg stopped_controllers)"/>
 	</include>
 
+	<param name="table_description" command="cat '$(find natural_motion)/urdf/table.urdf'" />
 
+	<node name="spawn_table" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param table_description -z 0.03 -model table" />
+
+	<param name="wall_description" command="cat '$(find natural_motion)/urdf/wall.urdf'" />
+
+	<node name="spawn_wall" pkg="gazebo_ros" type="spawn_model" output="screen" args="-urdf -param wall_description -y -0.15 -model wall" />
 
 </launch>
