@@ -46,17 +46,8 @@ def plot_joint_position_data(js, time_min, time_max, joint_index=None, smooth=Fa
 		ax1.set_ylabel('rad')
 		ax1.set_title('Position')
 		if smooth:
-			positions = savgol_filter(positions, 81, 3, mode='nearest')
+			positions = savgol_filter(positions, 51, 5, mode='nearest')
 			ax1.plot(time, positions, c='black')
-
-		pos_degree = 5
-
-		pos_model = np.polyfit(time, positions, pos_degree)
-		pos_predict = np.poly1d(pos_model)
-		pos_r2 = r2_score(positions, pos_predict(time))
-		print("Position r2 (n=" + str(pos_degree) + "): " + str(pos_r2))
-		y_lin_reg = pos_predict(time)
-		# ax1.plot(time, y_lin_reg, c='r')
 
 		velocities = deriv(time, positions)
 		ax2.plot(shift_times(time), velocities, c='orange')
@@ -64,12 +55,8 @@ def plot_joint_position_data(js, time_min, time_max, joint_index=None, smooth=Fa
 		ax2.set_ylabel('rad/s')
 		ax2.set_title('Velocity')
 		if smooth:
-			velocities = savgol_filter(velocities, 51, 2, mode='constant')
+			velocities = savgol_filter(velocities, 51, 5)
 			ax2.plot(shift_times(time), velocities, c='black')
-		
-		vel_predict = pos_predict.deriv()
-		y_lin_reg = vel_predict(shift_times(time))
-		# ax2.plot(shift_times(time), y_lin_reg, c='r')
 
 		accelerations = deriv(shift_times(time), velocities)
 		ax3.plot(shift_times(time, 2), accelerations, c='r')
@@ -111,6 +98,10 @@ def plot_joint_position_data(js, time_min, time_max, joint_index=None, smooth=Fa
 		print("Velocity:     " + str(velocities[0]) + " --> " + str(velocities[-1]))
 		print("Acceleration: " + str(accelerations[0]) + " --> " + str(accelerations[-1]))
 		print("Jerk:         " + str(jerk[0]) + " --> " + str(jerk[-1]))
+
+		max_vel = np.argmax(velocities)
+
+		print("Max velocity: index " + str(max_vel) + " time=" + str(shift_times(time)[max_vel]) + " vel=" + str(velocities[max_vel]))
 
 		print("")
 
