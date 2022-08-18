@@ -127,7 +127,7 @@ def compute_trajectory(pos, v_wp, percents, duration_override=None):
 		# use UDDU with duration override
 		profile_type = UDDU
 
-		total_duration = duration_override
+		total_duration = abs(duration_override)
 		time_stamps = [0.0, total_duration]
 
 		time_step = (time_stamps[1] - time_stamps[0]) / float(profile_type.size)
@@ -154,7 +154,7 @@ def compute_trajectory(pos, v_wp, percents, duration_override=None):
 
 		profile_type = UDDU
 
-		total_duration = (dp / profile_type.orig_dp) * (profile_type.orig_vel / v_wp[0]) * profile_type.orig_duration
+		total_duration = abs((dp / profile_type.orig_dp) * (profile_type.orig_vel / v_wp[0]) * profile_type.orig_duration)
 		time_stamps = [0.0, total_duration]
 
 		time_step = (time_stamps[1] - time_stamps[0]) / float(profile_type.size)
@@ -182,7 +182,7 @@ def compute_trajectory(pos, v_wp, percents, duration_override=None):
 		# profile_type = UDUD
 		profile_type = UOOD
 
-		total_duration = (dp / profile_type.orig_dp) * (profile_type.orig_vel / v_wp[0]) * profile_type.orig_duration
+		total_duration = abs((dp / profile_type.orig_dp) * (profile_type.orig_vel / v_wp[0]) * profile_type.orig_duration)
 		time_stamps = [0.0, percents[0] * total_duration, total_duration]
 
 		# first block
@@ -309,7 +309,7 @@ waypoint_percentages = [[0.7], []]
 
 # (time_points, jerk, positions, velocities, accelerations) = compute_trajectory(pos, v_waypoints, waypoint_percentages, duration_override=None)
 # print(get_durations([pos], [v_waypoints], [waypoint_percentages], duration_override=None))
-print(get_durations(pos, v_waypoints, waypoint_percentages, duration_override=None))
+# print(get_durations(pos, v_waypoints, waypoint_percentages, duration_override=None))
 
 # dp = pos[1] - pos[0]
 
