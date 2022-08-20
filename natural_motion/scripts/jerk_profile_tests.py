@@ -189,6 +189,7 @@ def compute_trajectory(pos, v_wp, percents, duration_override=None):
 		time_step_1 = (time_stamps[1] - time_stamps[0]) / float(profile_type.size)
 		time_steps_1 = [time_step_1] * profile_type.size
 
+		# TODO: throw error if dp sign != vel waypoint sign
 		jerk_scale_factor = profile_type.jerk_scale(0.0, v_wp[0], time_step_1, MODE_VEL)
 
 		jerk_profile = profile_type(-10.0 * jerk_scale_factor, 10.0 * jerk_scale_factor)
@@ -300,12 +301,12 @@ def compute_trajectory(pos, v_wp, percents, duration_override=None):
 	# elif len(pos) == 5 and len(vel) == 5:
 	# 	pass  # use UOD/UDU
 
-# pos = [0.0, 1.0]
-# v_waypoints = [2.0]
-# waypoint_percentages = [0.7]
-pos = [[0.0, 1.0], [-1.5, 0.5]]
-v_waypoints = [[2.0], [1.0]]
-waypoint_percentages = [[0.7], []]
+pos = [0.0, -1.0]
+v_waypoints = [2.0]
+waypoint_percentages = [0.7]
+# pos = [[0.0, 1.0], [-1.5, 0.5]]
+# v_waypoints = [[2.0], [1.0]]
+# waypoint_percentages = [[0.7], []]
 
 # (time_points, jerk, positions, velocities, accelerations) = compute_trajectory(pos, v_waypoints, waypoint_percentages, duration_override=None)
 # print(get_durations([pos], [v_waypoints], [waypoint_percentages], duration_override=None))

@@ -92,10 +92,12 @@ group.execute(plan1, wait=True)
 
 focus_joint = 2
 current_position = group.get_current_joint_values()
+# target position sign should match velocity waypoint sign
 target_pos = math.radians(25.0)
 
 pos = [current_position[focus_joint], target_pos]
-v_waypoints = [1.0]
+# velocity waypoint sign should match target position sign
+v_waypoints = [1.5]
 waypoint_percentages = [0.7]
 
 (time_points, jerk, positions, velocities, accelerations) = compute_trajectory(pos, v_waypoints, waypoint_percentages, duration_override=None)

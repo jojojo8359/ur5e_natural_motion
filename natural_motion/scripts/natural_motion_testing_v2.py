@@ -5,6 +5,7 @@ import rospy
 import moveit_commander
 import moveit_msgs.msg
 from smoothing_core_v3 import *
+from smoothing_core_v2 import generate_smooth_trajectory_with_limits
 import math
 import timeit
 
