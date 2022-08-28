@@ -1,14 +1,16 @@
 try:
-	from typing import List, Union, Tuple, Optional, Type
+	from typing import List, Tuple, Optional
 except ImportError:
 	pass  # Trick VSC into "importing" typing for type hints, but don't actually import it at runtime (still using Python 2.7.17)
 
 from jerk_profile import JerkProfile, UDDU, UDUD, UOOD, MODE_POS, MODE_VEL
 import rospy
-import moveit_msgs.msg
 import moveit_commander
 import matplotlib.pyplot as plt
+import moveit_msgs.msg
 import geometry_msgs.msg
+import trajectory_msgs.msg
+from genpy import Duration
 
 def gen_next_a(current_accel, jerk_with_sign, time_step):
 	# type: (float, float, float) -> float
@@ -91,8 +93,6 @@ def publish_trajectory(publisher, trajectory, robot):
 	:type publisher: rospy.Publisher
 	:type trajectory: moveit_msgs.msg.RobotTrajectory
 	:type robot: moveit_commander.RobotCommander
-	:returns: None
-	:rtype: None
 	"""
 	display_trajectory = moveit_msgs.msg.DisplayTrajectory()
 	display_trajectory.trajectory_start = robot.get_current_state()
@@ -172,6 +172,17 @@ def create_time_points(time_steps):
 
 def scale_duration(delta_pos, vel_waypoint, jerk_profile_type):
 	# type: (float, float, JerkProfile) -> float
+	"""Scales a profile's baseline duration based on a position delta and velocity waypoint
+
+	:param delta_pos: the new position delta to scale the baseline value to
+	:param vel_waypoint: the new maximum velocity to scale the baseline value to
+	:param jerk_profile_type: the jerk profile type to scale a duration for
+	:type delta_pos: float
+	:type vel_waypoint: float
+	:type jerk_profile_type: JerkProfile
+	:returns: the new scaled duration
+	:rtype: float
+	"""
 	return abs((delta_pos / jerk_profile_type.orig_dp) * (jerk_profile_type.orig_vel / vel_waypoint) * jerk_profile_type.orig_duration)
 
 
@@ -185,12 +196,12 @@ def create_trajectory(initial_pos, final_pos, velocity_waypoint=None, waypoint_p
 	:param waypoint_percent: the target waypoint's percentage position within the trajectory, optional
 	:param duration: the trajectory's target duration, optional
 	:param use_alternate_profile: if True, use UDUD profile over UOOD; if False, default to UOOD
-	:param initial_pos: float
-	:param final_pos: float
-	:param velocity_waypoint: Optional[float]
-	:param waypoint_percent: Optional[float]
-	:param duration: Optional[float]
-	:param use_alternate_profile: bool
+	:type initial_pos: float
+	:type final_pos: float
+	:type velocity_waypoint: Optional[float]
+	:type waypoint_percent: Optional[float]
+	:type duration: Optional[float]
+	:type use_alternate_profile: bool
 	:returns: a tuple containing time stamps, jerk values, positions, velocities, and accelerations, respectively
 	:rtype: Tuple[List[float], List[float], List[float], List[float], List[float]]
 	"""
@@ -291,16 +302,7 @@ def create_trajectory(initial_pos, final_pos, velocity_waypoint=None, waypoint_p
 
 def print_trajectory(time, jerk, pos, vel, accel):
 	# type: (List[float], List[float], List[float], List[float], List[float]) -> None
-	print("T: " + str(time))
-	print("Pos: " + str(pos))
-	print("Vel: " + str(vel))
-	print("Accel: " + str(accel))
-	print("Jerk: " + str(jerk))
-
-
-def plot_trajectory(time, jerk, positions, velocities, accelerations):
-	# type: (List[float], List[float], List[float], List[float], List[float]) -> None
-	"""Plots a given trajectory using matplotlib
+	"""Prints the values of a trajectory to the console for quick debugging
 
 	:param time: time values in point form (as opposed to durations) (size n)
 	:param jerk: jerk values of the trajectory (size n-1)
@@ -313,18 +315,48 @@ def plot_trajectory(time, jerk, positions, velocities, accelerations):
 	:type velocities: List[float]
 	:type accelerations: List[float]
 	"""
-	titlefont = {'size': 85}
+
+	print("T: " + str(time))
+	print("Pos: " + str(pos))
+	print("Vel: " + str(vel))
+	print("Accel: " + str(accel))
+	print("Jerk: " + str(jerk))
+
+
+def plot_trajectory(time, jerk, positions, velocities, accelerations):
+	# type: (List[float], List[float], List[float], List[float], List[float]) -> None
+	"""Plots a given trajectory using matplotlib
+
+	Remember to call plt.show() after all graphs have been created!
+
+	:param time: time values in point form (as opposed to durations) (size n)
+	:param jerk: jerk values of the trajectory (size n-1)
+	:param positions: position values of the trajectory (size n)
+	:param velocities: velocity values of the trajectory (size n)
+	:param accelerations: acceleration values of the trajectory (size n)
+	:type time: List[float]
+	:type jerk: List[float]
+	:type positions: List[float]
+	:type velocities: List[float]
+	:type accelerations: List[float]
+	"""
+
 	labelfont = {'size': 14}
 
 	fig, (ax1) = plt.subplots(1, 1)
 
-	# ax1.set_title("UDDU Jerk Profile", fontdict=titlefont)
-	plt.suptitle("UDUD Jerk Profile", fontsize='x-large')
+	# Used for presentation-size graphs
+	# plt.suptitle("UDUD Jerk Profile", fontsize='x-large')
 	
-	ax1.plot(time, positions, c='blue', marker='o', linewidth=3, markersize=10, label='Position')
-	ax1.plot(time, velocities, c='orange', marker='o', linewidth=3, markersize=10, label='Velocity')
-	ax1.plot(time, accelerations, c='red', marker='o', linewidth=3, markersize=10, label='Acceleration')
-	ax1.hlines(jerk, [time[x] for x in range(len(time)-1)], [time[x] for x in range(1, len(time))], colors='green', linewidth=3)
+	# ax1.plot(time, positions, c='blue', marker='o', linewidth=3, markersize=10, label='Position')
+	# ax1.plot(time, velocities, c='orange', marker='o', linewidth=3, markersize=10, label='Velocity')
+	# ax1.plot(time, accelerations, c='red', marker='o', linewidth=3, markersize=10, label='Acceleration')
+	# ax1.hlines(jerk, [time[x] for x in range(len(time)-1)], [time[x] for x in range(1, len(time))], colors='green', linewidth=3)
+
+	ax1.plot(time, positions, c='blue', marker='o', label='Position')
+	ax1.plot(time, velocities, c='orange', marker='o', label='Velocity')
+	ax1.plot(time, accelerations, c='red', marker='o', label='Acceleration')
+	ax1.hlines(jerk, [time[x] for x in range(len(time)-1)], [time[x] for x in range(1, len(time))], colors='green')
 
 	ymin = [0]
 	for i in range(1, len(time) - 1):
@@ -336,15 +368,17 @@ def plot_trajectory(time, jerk, positions, velocities, accelerations):
 		ymax.append(max(jerk[i-1], jerk[i]))
 	ymax.append(jerk[-1])
 
-	ax1.vlines([time[x] for x in range(len(time))], ymin, ymax, colors='green', linewidth=3, label='Jerk')
+	# used for presentation-size graphs
+	# ax1.vlines([time[x] for x in range(len(time))], ymin, ymax, colors='green', linewidth=3, label='Jerk')
+
+	ax1.vlines([time[x] for x in range(len(time))], ymin, ymax, colors='green', label='Jerk')
 
 	ax1.legend(loc='upper left', fontsize=14)
 	ax1.set_ylabel("rad, rad/s, rad/s^2, rad/s^3", fontdict=labelfont)
 	ax1.set_xlabel("time (s)", fontdict=labelfont)
 
-	fig.set_size_inches(14.5, 10.5, forward=True)
-
-	# plt.show()
+	# uniform graph size for presentations
+	# fig.set_size_inches(14.5, 10.5, forward=True)
 
 
 def wait_for_state_update(box_name, scene, box_is_known=False, box_is_attached=False, timeout=4):
@@ -364,6 +398,7 @@ def wait_for_state_update(box_name, scene, box_is_known=False, box_is_attached=F
 	:returns: False if a timeout occurs, True if the object is found within the planning scene
 	:rtype: bool
 	"""
+
 	start = rospy.get_time()
 	seconds = rospy.get_time()
 	while (seconds - start < timeout) and not rospy.is_shutdown():
@@ -391,6 +426,7 @@ def add_table(robot, scene, timeout=4):
 	:returns: True if the table was successfully added to the planning scene, False otherwise
 	:rtype: bool
 	"""
+
 	box_pose = geometry_msgs.msg.PoseStamped()
 	robot_planning_frame = robot.get_planning_frame()  # type: str
 	box_pose.header.frame_id = robot_planning_frame
@@ -414,6 +450,7 @@ def add_wall(robot, scene, timeout=4):
 	:returns: True if the wall was successfully added to the planning scene, False otherwise
 	:rtype: bool
 	"""
+
 	box_pose = geometry_msgs.msg.PoseStamped()
 	robot_planning_frame = robot.get_planning_frame()  # type: str
 	box_pose.header.frame_id = robot_planning_frame
@@ -422,3 +459,69 @@ def add_wall(robot, scene, timeout=4):
 	wall_name = "wall"
 	scene.add_box(wall_name, box_pose, size=(10, 0.02, 10))
 	return wait_for_state_update(wall_name, scene, box_is_known=True, timeout=timeout)
+
+
+def trajectory_to_target(target, focus_joint_index, focus_velocity_waypoint, focus_waypoint_percentage, current_joint_values, joint_names, frame_id, use_alternate_profile=False):
+	# type: (List[Optional[float]], int, float, float, List[float], List[str], str, bool) -> moveit_msgs.msg.RobotTrajectory
+	"""A high-level function to create natural motion to a provided target pose
+
+	:param target: the target pose as a list of floats for each joint involved in the motion
+	:param focus_joint_index: specifies which joint index will have the velocity waypoint applied to it
+	:param focus_velocity_waypoint: the target velocity for the focus joint
+	:param focus_waypoint_percentage: the percentage through the total focus trajectory the velocity waypoint will be placed at
+	:param current_joint_values: a pose representing the robot's current joint position state
+	:param joint_names: a list of names of the robot's active joints, used for trajectory generation
+	:param frame_id: the robot's pose reference frame id, used for trajectory generation
+	:param use_alternate_profile: passed to create_trajectory, uses UOOD if False and UDUD if True
+	:type target: List[Optional[float]]
+	:type focus_joint_index: int
+	:type focus_velocity_waypoint: float
+	:type focus_waypoint_percentage: float
+	:type current_joint_values: List[float]
+	:type joint_names: List[str]
+	:type frame_id: str
+	:type use_alternate_profile: bool
+	:returns: a populated RobotTrajectory message that contains natural motion to the target pose
+	:rtype: moveit_msgs.msg.RobotTrajectory
+	
+	"""
+
+	# create the focus trajectory for the focus joint to determine a total duration
+	(focus_time, focus_jerk, focus_pos, focus_vel, focus_accel) = create_trajectory(current_joint_values[focus_joint_index], target[focus_joint_index], focus_velocity_waypoint, focus_waypoint_percentage, duration=None, use_alternate_profile=use_alternate_profile)
+
+	focus_duration = focus_time[-1] - focus_time[0]
+
+	# create and initialize the trajectory message
+	result = moveit_msgs.msg.RobotTrajectory()
+
+	result.joint_trajectory.header.frame_id = frame_id
+	result.joint_trajectory.joint_names = joint_names
+
+	for i in range(len(focus_time)):
+		result.joint_trajectory.points.append(trajectory_msgs.msg.JointTrajectoryPoint(time_from_start=Duration.from_sec(focus_time[i])))
+
+	# populate the rest of the trajectory for all applicable joints
+	for joint_index, joint_target in enumerate(target):
+		if joint_target is None:
+			# keep constant
+			for point in result.joint_trajectory.points:
+				point.positions.append(current_joint_values[joint_index])
+				point.velocities.append(0.0)
+				point.accelerations.append(0.0)
+		else:
+			# create custom trajectory to position
+			if joint_index == focus_joint_index:
+				# use focus trajectory
+				for i in range(len(result.joint_trajectory.points)):
+					result.joint_trajectory.points[i].positions.append(focus_pos[i])
+					result.joint_trajectory.points[i].velocities.append(focus_vel[i])
+					result.joint_trajectory.points[i].accelerations.append(focus_accel[i])
+			else:
+				# generate a trajectory
+				(t, j, pos, vel, accel) = create_trajectory(current_joint_values[joint_index], target[joint_index], waypoint_percent=focus_waypoint_percentage, duration=focus_duration, use_alternate_profile=use_alternate_profile)
+				for i in range(len(focus_time)):
+					result.joint_trajectory.points[i].positions.append(pos[i])
+					result.joint_trajectory.points[i].velocities.append(vel[i])
+					result.joint_trajectory.points[i].accelerations.append(accel[i])
+	
+	return result

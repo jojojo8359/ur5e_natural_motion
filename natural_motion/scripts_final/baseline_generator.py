@@ -1,15 +1,12 @@
 #! /usr/bin/env python
 
-try:
-	from typing import List, Union, Tuple, Optional, Type
-except ImportError:
-	pass  # Trick VSC into "importing" typing for type hints, but don't actually import it at runtime (still using Python 2.7.17)
-
 import matplotlib.pyplot as plt
-from natural_motion import integrate, plot_trajectory, create_time_points, print_trajectory
+from natural_motion import integrate, plot_trajectory, create_time_points
 
-plt.rcParams.update({'font.size': 16})
+# Set font size for larger viewing (presentations)
+# plt.rcParams.update({'font.size': 16})
 
+# Initial values
 initial_pos = 0.0
 final_pos = 2.0
 
@@ -21,12 +18,13 @@ initial_accel = 0.0
 jerk_min = -10.0
 jerk_max = 10.0
 
-
+# Define jerk profile types with lambda functions
 UDDU = lambda min, max: [max, 0, min, 0, min, 0, max]
 UDUD = lambda min, max: [max, 0, min, 0, max, 0, min]
 UOOD = lambda min, max: [max, 0, 0, 0, 0, 0, min]
 UD = lambda min, max: [max, 0, min]
 
+# Set the current profilet type to generate a baseline for
 profile = UOOD
 
 total_duration = 2.0
@@ -34,6 +32,7 @@ total_duration = 2.0
 time_step = 0.2
 
 
+# Step one: get original scale factors
 
 jerk_profile = profile(jerk_min, jerk_max)
 
@@ -53,6 +52,8 @@ print("orig_jerk_min: " + str(min(jerk_profile)))
 print("orig_jerk_max: " + str(max(jerk_profile)))
 
 plot_trajectory(time_points, jerk_profile, positions, velocities, accelerations)
+
+# Step two: apply scale factors to provided position values
 
 time_step = total_duration / float(len(jerk_profile))
 
@@ -74,6 +75,8 @@ new_duration = total_duration / ((final_vel - initial_vel) / max(velocities))
 print("orig_duration: " + str(new_duration))
 plot_trajectory(time_points, jerk_profile, positions, velocities, accelerations)
 
+
+# Step three: apply scale factors to provided velocity max
 
 time_step = new_duration / float(len(jerk_profile))
 

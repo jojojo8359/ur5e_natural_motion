@@ -1,8 +1,9 @@
 try:
-	from typing import List, Union, Tuple, Optional, Type
+	from typing import List
 except ImportError:
 	pass  # Trick VSC into "importing" typing for type hints, but don't actually import it at runtime (still using Python 2.7.17)
 
+# Constants for determining modes when scaling for different value types
 MODE_POS = 0
 MODE_VEL = 1
 
